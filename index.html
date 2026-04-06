@@ -314,6 +314,25 @@
       font-size: 0.85rem; font-weight: 600; cursor: pointer;
     }
 
+    /* ── Mode toggle ── */
+    .mode-toggle {
+      display: flex;
+      background: #f0f2f5;
+      border-radius: 10px;
+      padding: 3px;
+      margin-bottom: 14px;
+      gap: 3px;
+    }
+    .mode-btn {
+      flex: 1; padding: 7px 6px; font-size: 0.8rem; font-weight: 600;
+      color: #888; background: none; border: none; border-radius: 8px;
+      cursor: pointer; transition: all 0.18s;
+    }
+    .mode-btn.active {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white; box-shadow: 0 2px 6px rgba(102,126,234,0.35);
+    }
+
     /* ── Steps section ── */
     .steps-section {
       background: #f8f9ff; border: 1.5px solid #e0e7ff;
@@ -324,6 +343,17 @@
     .steps-row input { flex: 1; }
     .steps-result { font-size: 0.8rem; color: #555; margin-top: 6px; min-height: 18px; }
     .steps-result strong { color: #667eea; }
+
+    .burn-breakdown {
+      font-size: 0.8rem; color: #555; margin-top: 5px;
+      background: #f0fdf4; border-radius: 7px; padding: 5px 10px;
+      display: none;
+    }
+    .burn-breakdown strong { color: #16a34a; }
+
+    .mode-note {
+      font-size: 0.75rem; color: #aaa; margin-top: 5px; line-height: 1.4;
+    }
 
     .divider { border: none; border-top: 1px solid #eee; margin: 10px 0; }
   </style>
@@ -499,28 +529,44 @@
 
     <hr class="divider" />
 
-    <!-- Steps converter -->
-    <div class="steps-section">
-      <div class="steps-title">👟 步數換算消耗熱量</div>
-      <div class="steps-row">
-        <div style="flex:1; display:flex; flex-direction:column; gap:5px;">
-          <label>今日步數</label>
-          <input type="number" id="inputSteps" min="0" placeholder="例：6000" />
-        </div>
-        <button class="btn btn-sm" id="addStepsBtn" style="margin-bottom:1px;">加入消耗</button>
-      </div>
-      <div class="steps-result" id="stepsResult"></div>
-      <div style="font-size:0.71rem; color:#aaa; margin-top:4px;">
-        公式：ACSM — (步數 ÷ 2000) × 0.57 cal/lb × 體重
-      </div>
+    <!-- Mode toggle -->
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="modeTdeeBtn">⚡ TDEE 模式</button>
+      <button class="mode-btn" id="modeBmrBtn">🔢 BMR + 步數模式</button>
     </div>
 
-    <!-- Burn with TDEE quick-fill -->
-    <div class="form-row">
-      <div class="label-row">
-        <label>消耗熱量（大卡，含基礎代謝）</label>
+    <!-- TDEE mode section -->
+    <div id="tdeeModeSection">
+      <div class="label-row" style="margin-bottom:6px;">
+        <label>消耗熱量（大卡）</label>
         <button class="btn-ghost" id="fillTdeeBtn">填入 TDEE</button>
       </div>
+      <div class="mode-note" style="margin-bottom:8px;">TDEE 已依活動量計算每日總消耗，不需另加步數。</div>
+    </div>
+
+    <!-- BMR mode section -->
+    <div id="bmrModeSection" style="display:none;">
+      <div class="steps-section">
+        <div class="steps-title">👟 今日步數</div>
+        <div style="display:flex; flex-direction:column; gap:5px;">
+          <label>步數</label>
+          <input type="number" id="inputSteps" min="0" placeholder="例：6000" />
+        </div>
+        <div class="steps-result" id="stepsResult"></div>
+        <div style="font-size:0.71rem; color:#aaa; margin-top:4px;">
+          公式：ACSM — (步數 ÷ 2000) × 0.57 cal/lb × 體重
+        </div>
+      </div>
+      <div class="label-row" style="margin-bottom:6px;">
+        <label>消耗熱量（自動計算）</label>
+        <button class="btn-ghost" id="fillBmrBtn">只填 BMR</button>
+      </div>
+      <div class="burn-breakdown" id="burnBreakdown" style="margin-bottom:8px;"></div>
+      <div class="mode-note" style="margin-bottom:8px;">BMR = 靜止基礎代謝；步數換算當日實際活動消耗。</div>
+    </div>
+
+    <!-- Shared burn input -->
+    <div class="form-row">
       <input type="number" id="inputBurn" min="0" placeholder="例：2000" />
     </div>
 
@@ -590,38 +636,65 @@
     saveProfile(profile);
   });
 
-  // ── Fill TDEE into burn field ──
+  // ── Burn mode (tdee | bmr) ──
+  let burnMode = localStorage.getItem('diet_burnMode') || 'tdee';
+
+  function applyBurnMode(mode) {
+    burnMode = mode;
+    localStorage.setItem('diet_burnMode', mode);
+    document.getElementById('tdeeModeSection').style.display = mode === 'tdee' ? 'block' : 'none';
+    document.getElementById('bmrModeSection').style.display  = mode === 'bmr'  ? 'block' : 'none';
+    document.getElementById('modeTdeeBtn').classList.toggle('active', mode === 'tdee');
+    document.getElementById('modeBmrBtn').classList.toggle('active',  mode === 'bmr');
+    if (mode === 'bmr') recalcBmrBurn();
+  }
+
+  document.getElementById('modeTdeeBtn').addEventListener('click', () => applyBurnMode('tdee'));
+  document.getElementById('modeBmrBtn').addEventListener('click',  () => applyBurnMode('bmr'));
+
+  // ── Fill TDEE ──
   document.getElementById('fillTdeeBtn').addEventListener('click', () => {
-    if (!profile || !profile.tdee) {
-      alert('請先在「BMR / TDEE」tab 計算 TDEE');
-      return;
-    }
+    if (!profile?.tdee) { alert('請先在「BMR / TDEE」tab 計算 TDEE'); return; }
     document.getElementById('inputBurn').value = profile.tdee;
   });
 
+  // ── Fill BMR only ──
+  document.getElementById('fillBmrBtn').addEventListener('click', () => {
+    if (!profile?.bmr) { alert('請先在「BMR / TDEE」tab 計算 BMR'); return; }
+    document.getElementById('inputBurn').value = profile.bmr;
+    document.getElementById('burnBreakdown').style.display = 'none';
+  });
+
   // ── Steps → Calories (ACSM) ──
-  // calories = (steps / 2000) × 0.57 cal/lb × weight_lbs
   function stepsToKcal(steps, weightKg) {
     return Math.round((steps / 2000) * 0.57 * (weightKg * 2.20462));
   }
 
-  document.getElementById('inputSteps').addEventListener('input', () => {
-    const steps = parseInt(document.getElementById('inputSteps').value);
-    const wkg   = profile ? profile.weight : 60;
-    if (!steps || steps <= 0) { document.getElementById('stepsResult').innerHTML = ''; return; }
-    const kcal = stepsToKcal(steps, wkg);
-    document.getElementById('stepsResult').innerHTML =
-      `≈ <strong>${kcal.toLocaleString()} kcal</strong>（體重 ${wkg} kg）`;
-  });
+  function recalcBmrBurn() {
+    if (burnMode !== 'bmr') return;
+    const steps = parseInt(document.getElementById('inputSteps').value) || 0;
+    const wkg   = profile?.weight || 60;
+    const bmr   = profile?.bmr   || 0;
 
-  document.getElementById('addStepsBtn').addEventListener('click', () => {
-    const steps = parseInt(document.getElementById('inputSteps').value);
-    if (!steps || steps <= 0) { alert('請先輸入步數'); return; }
-    const wkg     = profile ? profile.weight : 60;
-    const kcal    = stepsToKcal(steps, wkg);
-    const current = parseInt(document.getElementById('inputBurn').value) || 0;
-    document.getElementById('inputBurn').value = current + kcal;
-  });
+    document.getElementById('stepsResult').innerHTML = steps > 0
+      ? `步數消耗 ≈ <strong>${stepsToKcal(steps, wkg).toLocaleString()} kcal</strong>`
+      : '';
+
+    if (bmr > 0) {
+      const stepKcal = stepsToKcal(steps, wkg);
+      const total    = bmr + stepKcal;
+      document.getElementById('inputBurn').value = total;
+      const breakdown = document.getElementById('burnBreakdown');
+      if (steps > 0) {
+        breakdown.style.display = 'block';
+        breakdown.innerHTML = `BMR ${bmr.toLocaleString()} + 步數 ${stepKcal.toLocaleString()} = <strong>${total.toLocaleString()} kcal</strong>`;
+      } else {
+        breakdown.style.display = 'none';
+      }
+    }
+  }
+
+  document.getElementById('inputSteps').addEventListener('input', recalcBmrBurn);
 
   // ── Calendar ──
   function renderCalendar() {
@@ -955,18 +1028,16 @@
     document.getElementById('modalTitle').textContent = `${y}/${m}/${d} 熱量記錄`;
 
     const entry = data[key];
-    document.getElementById('inputIntake').value = entry ? entry.intake          : '';
-    document.getElementById('inputBurn').value   = entry ? entry.burn            : '';
-    document.getElementById('inputSteps').value  = entry ? (entry.steps || '')   : '';
-    document.getElementById('inputWeight').value = entry ? (entry.weight || '')  : '';
+    document.getElementById('inputIntake').value = entry ? entry.intake         : '';
+    document.getElementById('inputBurn').value   = entry ? entry.burn           : '';
+    document.getElementById('inputSteps').value  = entry ? (entry.steps || '')  : '';
+    document.getElementById('inputWeight').value = entry ? (entry.weight || '') : '';
     document.getElementById('stepsResult').innerHTML = '';
+    document.getElementById('burnBreakdown').style.display = 'none';
     document.getElementById('modalDelete').style.display = entry ? 'block' : 'none';
 
-    if (entry && entry.steps) {
-      const wkg  = profile ? profile.weight : 60;
-      document.getElementById('stepsResult').innerHTML =
-        `≈ <strong>${stepsToKcal(entry.steps, wkg).toLocaleString()} kcal</strong>（體重 ${wkg} kg）`;
-    }
+    applyBurnMode(burnMode);
+    if (burnMode === 'bmr' && entry?.steps) recalcBmrBurn();
 
     document.getElementById('modalOverlay').classList.add('open');
   }
@@ -1074,6 +1145,7 @@
   // ── Init ──
   loadProfileUI();
   loadGoalUI();
+  applyBurnMode(burnMode);
   refreshAll();
 </script>
 </body>
