@@ -626,7 +626,7 @@ function drawWeightChart(weights, deficits, days) {
   ctx.setLineDash([]);
 
   // ── Actual weight line (solid, purple) ──
-  ctx.strokeStyle = '#a78bfa';
+  ctx.strokeStyle = '#5b8a52';
   ctx.lineWidth = 2;
   ctx.beginPath();
   let first = true;
@@ -644,7 +644,7 @@ function drawWeightChart(weights, deficits, days) {
     if (w === null) return;
     const x = pad.left + i * slot + slot / 2;
     const y = pad.top + ((maxW - w) / range) * chartH;
-    ctx.fillStyle = '#7c3aed';
+    ctx.fillStyle = '#3d6b42';
     ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
 
     ctx.fillStyle = '#888';
