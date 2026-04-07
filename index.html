@@ -202,9 +202,18 @@
         選擇備份檔案匯入。重複日期以匯入檔為準，其餘保留現有資料。
       </p>
       <input type="file" id="importFile" accept=".json" style="display:none;" />
-      <button class="btn-file" id="chooseFileBtn">📂 選擇備份檔案</button>
-      <div id="fileNameDisplay" class="file-name-display">尚未選擇檔案</div>
-      <button class="btn" id="importBtn" style="margin-top:8px;">📥 確認匯入</button>
+      <div class="file-drop-zone" id="chooseFileBtn">
+        <div id="fileDropIdle">
+          <div style="font-size:1.6rem;margin-bottom:6px;">📂</div>
+          <div class="file-drop-label">點擊選擇備份檔案</div>
+          <div class="file-drop-hint">.json 格式</div>
+        </div>
+        <div id="fileDropSelected" style="display:none;">
+          <div style="font-size:1.4rem;margin-bottom:4px;">✅</div>
+          <div class="file-drop-label" id="fileNameText"></div>
+        </div>
+      </div>
+      <button class="btn" id="importBtn">📥 確認匯入</button>
     </div>
   </div>
 

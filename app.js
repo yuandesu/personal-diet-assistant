@@ -817,7 +817,17 @@ document.getElementById('chooseFileBtn').addEventListener('click', () => {
 });
 document.getElementById('importFile').addEventListener('change', () => {
   const file = document.getElementById('importFile').files[0];
-  document.getElementById('fileNameDisplay').textContent = file ? file.name : '尚未選擇檔案';
+  const zone = document.getElementById('chooseFileBtn');
+  if (file) {
+    document.getElementById('fileDropIdle').style.display    = 'none';
+    document.getElementById('fileDropSelected').style.display = 'block';
+    document.getElementById('fileNameText').textContent = file.name;
+    zone.classList.add('has-file');
+  } else {
+    document.getElementById('fileDropIdle').style.display    = 'block';
+    document.getElementById('fileDropSelected').style.display = 'none';
+    zone.classList.remove('has-file');
+  }
 });
 
 document.getElementById('importBtn').addEventListener('click', () => {
