@@ -254,7 +254,7 @@ function renderCharts() {
 
   const hasWeight = weights.some(w => w !== null);
   document.getElementById('weightChartSection').style.display = hasWeight ? 'block' : 'none';
-  if (hasWeight) drawWeightChart(weights, daysInMonth);
+  if (hasWeight) drawWeightChart(weights, deficits, daysInMonth);
 }
 
 function drawDeficitChart(deficits, days, targetDaily) {
@@ -353,11 +353,11 @@ function drawDeficitChart(deficits, days, targetDaily) {
   }
 }
 
-function drawWeightChart(weights, days) {
+function drawWeightChart(weights, deficits, days) {
   const canvas = document.getElementById('weightChart');
   const dpr = window.devicePixelRatio || 1;
   const W   = canvas.parentElement.offsetWidth;
-  const H   = 100;
+  const H   = 120;
   canvas.width  = W * dpr;
   canvas.height = H * dpr;
   canvas.style.width  = W + 'px';
@@ -370,12 +370,49 @@ function drawWeightChart(weights, days) {
   const pad    = { top: 14, bottom: 24, left: 44, right: 10 };
   const chartW = W - pad.left - pad.right;
   const chartH = H - pad.top  - pad.bottom;
+  const slot   = chartW / days;
 
-  const vals    = weights.filter(v => v !== null);
-  const minW    = Math.min(...vals) - 1;
-  const maxW    = Math.max(...vals) + 1;
-  const range   = maxW - minW || 1;
-  const slot    = chartW / days;
+  // ── Build predicted weight line ──
+  // Anchor = first day with both a weight measurement AND calorie data
+  let anchorIdx = -1;
+  let anchorWeight = null;
+  for (let i = 0; i < days; i++) {
+    if (weights[i] !== null && deficits[i] !== null) {
+      anchorIdx    = i;
+      anchorWeight = weights[i];
+      break;
+    }
+  }
+  // Fall back: first day with any weight, ignore calorie data
+  if (anchorIdx === -1) {
+    anchorIdx    = weights.findIndex(w => w !== null);
+    anchorWeight = weights[anchorIdx];
+  }
+
+  // predicted[i] = estimated weight on day i (null if no deficit data yet)
+  const predicted = Array(days).fill(null);
+  if (anchorIdx !== -1) {
+    predicted[anchorIdx] = anchorWeight;
+    let cumDeficit = 0;
+    for (let i = anchorIdx + 1; i < days; i++) {
+      if (deficits[i] !== null) {
+        cumDeficit += deficits[i];
+        predicted[i] = parseFloat((anchorWeight - cumDeficit / 7700).toFixed(2));
+      } else {
+        // carry forward last predicted value so line stays continuous
+        predicted[i] = predicted[i - 1];
+      }
+    }
+  }
+
+  // ── Y-axis scale: include both actual + predicted values ──
+  const allVals = [
+    ...weights.filter(v => v !== null),
+    ...predicted.filter(v => v !== null),
+  ];
+  const minW  = Math.min(...allVals) - 0.5;
+  const maxW  = Math.max(...allVals) + 0.5;
+  const range = maxW - minW || 1;
 
   // Grid lines
   ctx.strokeStyle = '#f0f0f0';
@@ -392,7 +429,23 @@ function drawWeightChart(weights, days) {
   ctx.fillText(maxW.toFixed(1), pad.left - 4, pad.top + 10);
   ctx.fillText(minW.toFixed(1), pad.left - 4, pad.top + chartH);
 
-  // Line + dots
+  // ── Predicted line (dashed, green) ──
+  ctx.strokeStyle = '#34d399';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  let firstPred = true;
+  predicted.forEach((p, i) => {
+    if (p === null) return;
+    const x = pad.left + i * slot + slot / 2;
+    const y = pad.top + ((maxW - p) / range) * chartH;
+    if (firstPred) { ctx.moveTo(x, y); firstPred = false; }
+    else           { ctx.lineTo(x, y); }
+  });
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ── Actual weight line (solid, purple) ──
   ctx.strokeStyle = '#a78bfa';
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -406,7 +459,7 @@ function drawWeightChart(weights, days) {
   });
   ctx.stroke();
 
-  // Dots + labels
+  // Dots + labels (actual)
   weights.forEach((w, i) => {
     if (w === null) return;
     const x = pad.left + i * slot + slot / 2;
