@@ -772,16 +772,6 @@ document.getElementById('modalSave').addEventListener('click', () => {
     ...(weight    ? { weight }    : {}),
   };
   saveData(data);
-
-  // Auto-update BMR/TDEE when weight changes
-  if (weight && profile && weight !== profile.weight) {
-    profile.weight = weight;
-    profile.bmr    = Math.round(calcBMR(profile.gender, weight, profile.height, profile.age));
-    profile.tdee   = Math.round(profile.bmr * profile.actMul);
-    saveProfile(profile);
-    loadProfileUI();
-  }
-
   closeModal();
   refreshAll();
 });
