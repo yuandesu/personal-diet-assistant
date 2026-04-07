@@ -812,6 +812,14 @@ document.getElementById('exportBtn').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
+document.getElementById('chooseFileBtn').addEventListener('click', () => {
+  document.getElementById('importFile').click();
+});
+document.getElementById('importFile').addEventListener('change', () => {
+  const file = document.getElementById('importFile').files[0];
+  document.getElementById('fileNameDisplay').textContent = file ? file.name : '尚未選擇檔案';
+});
+
 document.getElementById('importBtn').addEventListener('click', () => {
   const file = document.getElementById('importFile').files[0];
   if (!file) { alert('請先選擇 JSON 備份檔'); return; }

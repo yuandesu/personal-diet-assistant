@@ -201,11 +201,10 @@
       <p style="font-size:0.82rem;color:#666;margin-bottom:10px;line-height:1.6;">
         選擇備份檔案匯入。重複日期以匯入檔為準，其餘保留現有資料。
       </p>
-      <div class="form-row">
-        <label>選擇 JSON 備份檔</label>
-        <input type="file" id="importFile" accept=".json" />
-      </div>
-      <button class="btn" id="importBtn">📥 確認匯入</button>
+      <input type="file" id="importFile" accept=".json" style="display:none;" />
+      <button class="btn-file" id="chooseFileBtn">📂 選擇備份檔案</button>
+      <div id="fileNameDisplay" class="file-name-display">尚未選擇檔案</div>
+      <button class="btn" id="importBtn" style="margin-top:8px;">📥 確認匯入</button>
     </div>
   </div>
 
