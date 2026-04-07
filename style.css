@@ -350,6 +350,19 @@ canvas {
 
 .divider { border: none; border-top: 1px solid #eee; margin: 10px 0; }
 
+/* ── Export buttons ── */
+.export-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.btn-outline {
+  background: white;
+  color: #667eea;
+  border: 1.5px solid #667eea;
+}
+.btn-outline:hover { background: #f0f2f5; opacity: 1; }
+
 /* ── Custom file picker ── */
 .file-drop-zone {
   border: 2px dashed #c7d2fe;

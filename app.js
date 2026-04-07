@@ -830,6 +830,70 @@ document.getElementById('importFile').addEventListener('change', () => {
   }
 });
 
+document.getElementById('exportCsvBtn').addEventListener('click', () => {
+  const bmr  = profile?.bmr  || '';
+  const tdee = profile?.tdee || '';
+
+  // Sort all entries by date ascending
+  const entries = Object.entries(data).sort(([a], [b]) => a.localeCompare(b));
+  if (!entries.length) { alert('目前沒有任何記錄可匯出'); return; }
+
+  // Find anchor for predicted weight (first entry with weight)
+  let anchorWeight = null, anchorDate = null;
+  for (const [key, entry] of entries) {
+    if (entry.weight) { anchorWeight = entry.weight; anchorDate = key; break; }
+  }
+
+  // Cumulative deficit per date
+  let cumDeficit = 0;
+  const cumMap = {};
+  for (const [key, entry] of entries) {
+    cumDeficit += (entry.burn || 0) - getIntake(entry);
+    cumMap[key] = cumDeficit;
+  }
+
+  // Predicted weight from anchor onwards
+  const predMap = {};
+  if (anchorWeight !== null) {
+    let cum = 0, pastAnchor = false;
+    for (const [key, entry] of entries) {
+      if (key === anchorDate) pastAnchor = true;
+      if (!pastAnchor) continue;
+      cum += (entry.burn || 0) - getIntake(entry);
+      predMap[key] = parseFloat((anchorWeight - cum / 7700).toFixed(2));
+    }
+  }
+
+  // Build CSV
+  const headers = ['日期','總攝取(kcal)','消耗(kcal)','熱量缺口(kcal)','累計缺口(kcal)','實際體重(kg)','預估體重(kg)','BMR(kcal)','TDEE(kcal)'];
+  const rows = [headers.join(',')];
+  for (const [key, entry] of entries) {
+    const intake  = getIntake(entry);
+    const burn    = entry.burn || 0;
+    const deficit = burn - intake;
+    rows.push([
+      key,
+      intake || '',
+      burn   || '',
+      (intake || burn) ? deficit : '',
+      cumMap[key]  ?? '',
+      entry.weight || '',
+      predMap[key] || '',
+      bmr,
+      tdee,
+    ].join(','));
+  }
+
+  const bom  = '\uFEFF'; // UTF-8 BOM for Excel compatibility
+  const blob = new Blob([bom + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `diet-export-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
 document.getElementById('importBtn').addEventListener('click', () => {
   const file = document.getElementById('importFile').files[0];
   if (!file) { alert('請先選擇 JSON 備份檔'); return; }
