@@ -1,3 +1,14 @@
+// ── Intake helper (supports old single-field & new meal-breakdown data) ──
+function getIntake(entry) {
+  if (!entry) return 0;
+  if (entry.breakfast !== undefined || entry.lunch  !== undefined ||
+      entry.dinner    !== undefined || entry.snack  !== undefined) {
+    return (entry.breakfast || 0) + (entry.lunch || 0) +
+           (entry.dinner    || 0) + (entry.snack || 0);
+  }
+  return entry.intake || 0;
+}
+
 // ── Storage ──
 const STORE_KEY   = 'diet_data';
 const GOAL_KEY    = 'diet_goal';
@@ -64,6 +75,19 @@ function applyBurnMode(mode) {
 
 document.getElementById('modeTdeeBtn').addEventListener('click', () => applyBurnMode('tdee'));
 document.getElementById('modeBmrBtn').addEventListener('click',  () => applyBurnMode('bmr'));
+
+// ── Intake auto-sum ──
+function updateIntakeTotal() {
+  const total = (parseInt(document.getElementById('inputBreakfast').value) || 0)
+              + (parseInt(document.getElementById('inputLunch').value)     || 0)
+              + (parseInt(document.getElementById('inputDinner').value)    || 0)
+              + (parseInt(document.getElementById('inputSnack').value)     || 0);
+  document.getElementById('intakeTotal').textContent =
+    total > 0 ? `合計：${total.toLocaleString()} kcal` : '合計：— kcal';
+}
+['inputBreakfast', 'inputLunch', 'inputDinner', 'inputSnack'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateIntakeTotal);
+});
 
 // ── Fill TDEE ──
 document.getElementById('fillTdeeBtn').addEventListener('click', () => {
@@ -139,7 +163,7 @@ function renderCalendar() {
 
     const entry = data[key];
     if (entry) {
-      const net    = entry.intake - entry.burn; // negative = deficit (good)
+      const net    = getIntake(entry) - (entry.burn || 0); // negative = deficit (good)
       const kcalEl = document.createElement('div');
       kcalEl.className = 'day-kcal';
       kcalEl.textContent = (net > 0 ? '+' : '') + net.toLocaleString() + ' kcal';
@@ -191,7 +215,7 @@ function renderStats() {
     const entry = data[key];
     if (!entry) continue;
 
-    const deficit = entry.burn - entry.intake; // positive = deficit (good)
+    const deficit = (entry.burn || 0) - getIntake(entry); // positive = deficit (good)
     monthTotal += deficit;
     monthDays++;
 
@@ -233,7 +257,7 @@ function renderCharts() {
   for (let d = 1; d <= daysInMonth; d++) {
     const key   = dateKey(currentYear, currentMonth, d);
     const entry = data[key];
-    deficits.push(entry ? (entry.burn - entry.intake) : null);
+    deficits.push(entry ? ((entry.burn || 0) - getIntake(entry)) : null);
     weights.push(entry && entry.weight ? entry.weight : null);
   }
 
@@ -242,7 +266,7 @@ function renderCharts() {
   if (goal) {
     const goalKcal   = goal.kg * 7700;
     let cumDeficit   = 0;
-    for (const v of Object.values(data)) cumDeficit += (v.burn - v.intake);
+    for (const v of Object.values(data)) cumDeficit += ((v.burn || 0) - getIntake(v));
     const remaining  = Math.max(0, goalKcal - cumDeficit);
     const todayMs    = new Date(today.toDateString()).getTime();
     const deadlineMs = new Date(goal.date).getTime();
@@ -496,7 +520,7 @@ function renderProgress() {
   const daysLeft   = Math.max(0, Math.round((deadlineMs - todayMs) / 86400000));
 
   let cumDeficit = 0;
-  for (const v of Object.values(data)) cumDeficit += (v.burn - v.intake);
+  for (const v of Object.values(data)) cumDeficit += ((v.burn || 0) - getIntake(v));
 
   const remaining   = Math.max(0, goalKcal - cumDeficit);
   const pct         = Math.min(100, (cumDeficit / goalKcal) * 100);
@@ -530,9 +554,17 @@ function openModal(key) {
   document.getElementById('modalTitle').textContent = `${y}/${m}/${d} 熱量記錄`;
 
   const entry = data[key];
-  document.getElementById('inputIntake').value = entry ? entry.intake         : '';
-  document.getElementById('inputBurn').value   = entry ? entry.burn           : '';
-  document.getElementById('inputSteps').value  = entry ? (entry.steps || '')  : '';
+  document.getElementById('inputBreakfast').value = entry ? (entry.breakfast || '') : '';
+  document.getElementById('inputLunch').value     = entry ? (entry.lunch     || '') : '';
+  document.getElementById('inputDinner').value    = entry ? (entry.dinner    || '') : '';
+  document.getElementById('inputSnack').value     = entry ? (entry.snack     || '') : '';
+  // backward-compat: if old single intake field exists, prefill breakfast
+  if (entry?.intake && !entry.breakfast && !entry.lunch && !entry.dinner && !entry.snack) {
+    document.getElementById('inputBreakfast').value = entry.intake;
+  }
+  updateIntakeTotal();
+  document.getElementById('inputBurn').value   = entry ? (entry.burn   || '') : '';
+  document.getElementById('inputSteps').value  = entry ? (entry.steps  || '') : '';
   document.getElementById('inputWeight').value = entry ? (entry.weight || '') : '';
   document.getElementById('stepsResult').innerHTML = '';
   document.getElementById('burnBreakdown').style.display = 'none';
@@ -562,12 +594,26 @@ document.getElementById('modalOverlay').addEventListener('click', e => {
 });
 
 document.getElementById('modalSave').addEventListener('click', () => {
-  const intake = parseInt(document.getElementById('inputIntake').value);
-  const burn   = parseInt(document.getElementById('inputBurn').value);
-  const steps  = parseInt(document.getElementById('inputSteps').value)  || 0;
-  const weight = parseFloat(document.getElementById('inputWeight').value) || null;
-  if (isNaN(intake) || isNaN(burn)) { alert('請輸入有效數字'); return; }
-  data[activeKey] = { intake, burn, steps, ...(weight ? { weight } : {}) };
+  const breakfast = parseInt(document.getElementById('inputBreakfast').value) || 0;
+  const lunch     = parseInt(document.getElementById('inputLunch').value)     || 0;
+  const dinner    = parseInt(document.getElementById('inputDinner').value)    || 0;
+  const snack     = parseInt(document.getElementById('inputSnack').value)     || 0;
+  const burn      = parseInt(document.getElementById('inputBurn').value)      || 0;
+  const steps     = parseInt(document.getElementById('inputSteps').value)     || 0;
+  const weight    = parseFloat(document.getElementById('inputWeight').value)  || null;
+
+  const hasAnyValue = breakfast || lunch || dinner || snack || burn || weight;
+  if (!hasAnyValue) { alert('請至少填入一項資料'); return; }
+
+  data[activeKey] = {
+    ...(breakfast ? { breakfast } : {}),
+    ...(lunch     ? { lunch }     : {}),
+    ...(dinner    ? { dinner }    : {}),
+    ...(snack     ? { snack }     : {}),
+    ...(burn      ? { burn }      : {}),
+    ...(steps     ? { steps }     : {}),
+    ...(weight    ? { weight }    : {}),
+  };
   saveData(data);
 
   // Auto-update BMR/TDEE when weight changes

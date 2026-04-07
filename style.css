@@ -349,3 +349,24 @@ canvas {
 }
 
 .divider { border: none; border-top: 1px solid #eee; margin: 10px 0; }
+
+/* ── Meal grid ── */
+.intake-section { margin-bottom: 4px; }
+
+.intake-total {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #667eea;
+}
+
+.meal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.meal-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

@@ -175,9 +175,30 @@
   <div class="modal">
     <h3 id="modalTitle">記錄熱量</h3>
 
-    <div class="form-row">
-      <label>攝取熱量（大卡）</label>
-      <input type="number" id="inputIntake" min="0" placeholder="例：1800" />
+    <!-- Meal breakdown -->
+    <div class="intake-section">
+      <div class="label-row" style="margin-bottom:8px;">
+        <label>攝取熱量（大卡）</label>
+        <span class="intake-total" id="intakeTotal">合計：— kcal</span>
+      </div>
+      <div class="meal-grid">
+        <div class="meal-cell">
+          <label>🌅 早餐</label>
+          <input type="number" id="inputBreakfast" min="0" placeholder="例：400" />
+        </div>
+        <div class="meal-cell">
+          <label>☀️ 午餐</label>
+          <input type="number" id="inputLunch" min="0" placeholder="例：600" />
+        </div>
+        <div class="meal-cell">
+          <label>🌙 晚餐</label>
+          <input type="number" id="inputDinner" min="0" placeholder="例：600" />
+        </div>
+        <div class="meal-cell">
+          <label>🍪 點心</label>
+          <input type="number" id="inputSnack" min="0" placeholder="例：200" />
+        </div>
+      </div>
     </div>
 
     <hr class="divider" />
