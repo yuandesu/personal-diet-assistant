@@ -23,9 +23,15 @@
       <div class="cal-header">
         <button class="nav-btn" id="prevMonth">‹</button>
         <h2 id="calTitle"></h2>
-        <button class="nav-btn" id="nextMonth">›</button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="view-toggle-pill">
+            <button class="view-pill-btn active" id="viewMonthBtn">月</button>
+            <button class="view-pill-btn" id="viewWeekBtn">週</button>
+          </div>
+          <button class="nav-btn" id="nextMonth">›</button>
+        </div>
       </div>
-      <div class="weekdays">
+      <div class="weekdays" id="weekdaysHeader">
         <div>日</div><div>一</div><div>二</div><div>三</div>
         <div>四</div><div>五</div><div>六</div>
       </div>
@@ -62,6 +68,19 @@
       </div>
     </div>
 
+    <!-- 30-day trend -->
+    <div class="panel">
+      <div class="panel-title">📅 近30天趨勢</div>
+      <div class="stats-grid" id="trend30StatsGrid" style="margin-bottom:14px;"></div>
+      <div class="chart-canvas-wrap">
+        <canvas id="trend30Chart" height="140"></canvas>
+      </div>
+      <div class="chart-legend">
+        <span><span class="legend-dot" style="background:#86efac;"></span>缺口（好）</span>
+        <span><span class="legend-dot" style="background:#fca5a5;"></span>盈餘（壞）</span>
+      </div>
+    </div>
+
   </div>
 
   <!-- Right panel (tabs) -->
@@ -69,6 +88,7 @@
     <div class="tab-bar">
       <button class="tab-btn active" data-tab="main">🎯 目標 &amp; 進度</button>
       <button class="tab-btn" data-tab="bmr">🧮 BMR / TDEE</button>
+      <button class="tab-btn" data-tab="settings">⚙️ 資料</button>
     </div>
 
     <!-- Tab: Goal + Progress -->
@@ -165,6 +185,27 @@
           TDEE = BMR × 活動係數
         </div>
       </div>
+    </div>
+
+    <!-- Tab: Settings / Data -->
+    <div class="tab-content" id="tab-settings">
+      <div class="panel-title">💾 備份匯出</div>
+      <p style="font-size:0.82rem;color:#666;margin-bottom:12px;line-height:1.6;">
+        定期匯出備份，避免清除瀏覽器資料時遺失記錄。
+      </p>
+      <button class="btn" id="exportBtn">📤 匯出資料（JSON）</button>
+
+      <hr class="divider" style="margin:20px 0;" />
+
+      <div class="panel-title">📥 匯入資料</div>
+      <p style="font-size:0.82rem;color:#666;margin-bottom:10px;line-height:1.6;">
+        選擇備份檔案匯入。重複日期以匯入檔為準，其餘保留現有資料。
+      </p>
+      <div class="form-row">
+        <label>選擇 JSON 備份檔</label>
+        <input type="file" id="importFile" accept=".json" />
+      </div>
+      <button class="btn" id="importBtn">📥 確認匯入</button>
     </div>
   </div>
 

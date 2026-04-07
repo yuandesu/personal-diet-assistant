@@ -30,6 +30,19 @@ const today      = new Date();
 let currentYear  = today.getFullYear();
 let currentMonth = today.getMonth();
 
+// ── View mode (month | week) ──
+let viewMode  = 'month';
+
+function getWeekStart(date) {
+  const d   = new Date(date);
+  const day = d.getDay();                      // 0=Sun
+  const diff = day === 0 ? -6 : 1 - day;      // shift to Monday
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+let weekStart = getWeekStart(today);
+
 // ── Helpers ──
 const dateKey  = (y, m, d) => `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 const todayKey = ()        => dateKey(today.getFullYear(), today.getMonth(), today.getDate());
@@ -134,12 +147,67 @@ function recalcBmrBurn() {
 document.getElementById('inputSteps').addEventListener('input', recalcBmrBurn);
 
 // ── Calendar ──
+function makeDayCell(key, dayNum) {
+  const isToday = key === todayKey();
+  const cell    = document.createElement('div');
+  cell.className = 'day-cell' + (isToday ? ' today' : '');
+
+  const numEl = document.createElement('div');
+  numEl.className = 'day-num';
+  numEl.textContent = dayNum;
+  cell.appendChild(numEl);
+
+  const entry = data[key];
+  if (entry) {
+    const net    = getIntake(entry) - (entry.burn || 0);
+    const kcalEl = document.createElement('div');
+    kcalEl.className = 'day-kcal';
+    kcalEl.textContent = (net > 0 ? '+' : '') + net.toLocaleString() + ' kcal';
+    cell.appendChild(kcalEl);
+    cell.classList.add(net < 0 ? 'deficit' : net > 0 ? 'surplus' : 'zero');
+
+    if (entry.weight) {
+      const wEl = document.createElement('div');
+      wEl.className = 'day-weight';
+      wEl.textContent = entry.weight + ' kg';
+      cell.appendChild(wEl);
+    }
+  }
+
+  cell.addEventListener('click', () => openModal(key));
+  return cell;
+}
+
 function renderCalendar() {
-  const grid   = document.getElementById('daysGrid');
-  const title  = document.getElementById('calTitle');
-  const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
-  title.textContent = `${currentYear} 年 ${months[currentMonth]}`;
+  const grid    = document.getElementById('daysGrid');
+  const title   = document.getElementById('calTitle');
+  const hdr     = document.getElementById('weekdaysHeader');
   grid.innerHTML = '';
+
+  if (viewMode === 'week') {
+    hdr.innerHTML = '<div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div>';
+    grid.classList.add('week-mode');
+
+    const endDate = new Date(weekStart);
+    endDate.setDate(weekStart.getDate() + 6);
+    const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
+    title.textContent = `${weekStart.getFullYear()} ${fmt(weekStart)} – ${fmt(endDate)}`;
+
+    for (let i = 0; i < 7; i++) {
+      const d   = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      const key = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
+      grid.appendChild(makeDayCell(key, d.getDate()));
+    }
+    return;
+  }
+
+  // Month mode
+  hdr.innerHTML = '<div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>';
+  grid.classList.remove('week-mode');
+
+  const months      = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  title.textContent = `${currentYear} 年 ${months[currentMonth]}`;
 
   const firstDay    = new Date(currentYear, currentMonth, 1).getDay();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -149,98 +217,15 @@ function renderCalendar() {
     c.className = 'day-cell empty';
     grid.appendChild(c);
   }
-
   for (let d = 1; d <= daysInMonth; d++) {
-    const key     = dateKey(currentYear, currentMonth, d);
-    const isToday = key === todayKey();
-    const cell    = document.createElement('div');
-    cell.className = 'day-cell' + (isToday ? ' today' : '');
-
-    const numEl = document.createElement('div');
-    numEl.className = 'day-num';
-    numEl.textContent = d;
-    cell.appendChild(numEl);
-
-    const entry = data[key];
-    if (entry) {
-      const net    = getIntake(entry) - (entry.burn || 0); // negative = deficit (good)
-      const kcalEl = document.createElement('div');
-      kcalEl.className = 'day-kcal';
-      kcalEl.textContent = (net > 0 ? '+' : '') + net.toLocaleString() + ' kcal';
-      cell.appendChild(kcalEl);
-      cell.classList.add(net < 0 ? 'deficit' : net > 0 ? 'surplus' : 'zero');
-
-      if (entry.weight) {
-        const wEl = document.createElement('div');
-        wEl.className = 'day-weight';
-        wEl.textContent = entry.weight + ' kg';
-        cell.appendChild(wEl);
-      }
-    }
-
-    cell.addEventListener('click', () => openModal(key));
-    grid.appendChild(cell);
+    const key = dateKey(currentYear, currentMonth, d);
+    grid.appendChild(makeDayCell(key, d));
   }
 }
 
-// ── Stats Summary ──
-function renderStats() {
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  let monthTotal = 0, monthDays = 0;
-
-  const isCurrMonth = (currentYear === today.getFullYear() && currentMonth === today.getMonth());
-
-  // Determine week range:
-  // Current month → week containing today (Sun–Sat)
-  // Historical month → last calendar week of that month (Sun–Sat)
-  let wStart, wEnd, weekLabel;
-  if (isCurrMonth) {
-    wStart = new Date(today);
-    wStart.setDate(today.getDate() - today.getDay());
-    wEnd = new Date(wStart);
-    wEnd.setDate(wStart.getDate() + 6);
-    weekLabel = '本週';
-  } else {
-    const lastDay = new Date(currentYear, currentMonth + 1, 0);
-    wEnd = new Date(lastDay);
-    wStart = new Date(lastDay);
-    wStart.setDate(lastDay.getDate() - lastDay.getDay());
-    weekLabel = '末週';
-  }
-
-  let weekTotal = 0, weekDays = 0;
-
-  for (let d = 1; d <= daysInMonth; d++) {
-    const key   = dateKey(currentYear, currentMonth, d);
-    const entry = data[key];
-    if (!entry) continue;
-
-    const deficit = (entry.burn || 0) - getIntake(entry); // positive = deficit (good)
-    monthTotal += deficit;
-    monthDays++;
-
-    const entryDate = new Date(currentYear, currentMonth, d);
-    if (entryDate >= wStart && entryDate <= wEnd) {
-      weekTotal += deficit;
-      weekDays++;
-    }
-  }
-
-  const monthAvg = monthDays > 0 ? Math.round(monthTotal / monthDays) : 0;
-  const monthKg  = (monthTotal / 7700).toFixed(2);
-
-  const grid = document.getElementById('statsGrid');
+// ── Stats helper ──
+function makeStatCards(grid, cards) {
   grid.innerHTML = '';
-
-  const cards = [
-    { label: '本月記錄天數',    value: monthDays + ' 天',               cls: '' },
-    { label: '本月累計缺口',    value: (monthTotal > 0 ? '+' : '') + monthTotal.toLocaleString() + ' kcal', cls: monthTotal >= 0 ? 'green' : 'red' },
-    { label: '本月每日平均',    value: (monthAvg > 0 ? '+' : '') + monthAvg.toLocaleString() + ' kcal',    cls: monthAvg  >= 0 ? 'green' : 'red' },
-    { label: '本月估算體重變化', value: (monthTotal >= 0 ? '-' : '+') + Math.abs(monthKg) + ' kg',          cls: monthTotal >= 0 ? 'green' : 'red' },
-    { label: weekLabel + '記錄天數', value: weekDays + ' 天', cls: '' },
-    { label: weekLabel + '累計缺口', value: (weekTotal > 0 ? '+' : '') + weekTotal.toLocaleString() + ' kcal', cls: weekTotal >= 0 ? 'green' : 'red' },
-  ];
-
   for (const c of cards) {
     const card = document.createElement('div');
     card.className = 'stat-card';
@@ -249,39 +234,208 @@ function renderStats() {
   }
 }
 
-// ── Chart ──
-function renderCharts() {
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const deficits = [], weights = [];
+// ── Stats Summary ──
+function renderStats() {
+  const grid       = document.getElementById('statsGrid');
+  const panelTitle = document.querySelector('#statsPanel .panel-title');
 
+  if (viewMode === 'week') {
+    panelTitle.textContent = '📈 本週統計';
+    let weekTotal = 0, weekDays = 0;
+    for (let i = 0; i < 7; i++) {
+      const d   = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      const key   = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
+      const entry = data[key];
+      if (!entry) continue;
+      weekTotal += (entry.burn || 0) - getIntake(entry);
+      weekDays++;
+    }
+    const weekAvg = weekDays > 0 ? Math.round(weekTotal / weekDays) : 0;
+    const weekKg  = (weekTotal / 7700).toFixed(2);
+    makeStatCards(grid, [
+      { label: '本週記錄天數',    value: weekDays + ' 天',                                                     cls: '' },
+      { label: '本週累計缺口',    value: (weekTotal >= 0 ? '+' : '') + weekTotal.toLocaleString() + ' kcal',   cls: weekTotal >= 0 ? 'green' : 'red' },
+      { label: '本週每日平均',    value: (weekAvg  >= 0 ? '+' : '') + weekAvg.toLocaleString()  + ' kcal',     cls: weekAvg  >= 0 ? 'green' : 'red' },
+      { label: '本週估算體重變化', value: (weekTotal >= 0 ? '-' : '+') + Math.abs(weekKg) + ' kg',              cls: weekTotal >= 0 ? 'green' : 'red' },
+    ]);
+    return;
+  }
+
+  // Month mode
+  panelTitle.textContent = '📈 本月統計';
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  let monthTotal = 0, monthDays = 0;
+
+  const isCurrMonth = (currentYear === today.getFullYear() && currentMonth === today.getMonth());
+  let wStart, wEnd, weekLabel;
+  if (isCurrMonth) {
+    wStart = new Date(today);
+    wStart.setDate(today.getDate() - today.getDay());
+    wEnd   = new Date(wStart);
+    wEnd.setDate(wStart.getDate() + 6);
+    weekLabel = '本週';
+  } else {
+    const lastDay = new Date(currentYear, currentMonth + 1, 0);
+    wEnd   = new Date(lastDay);
+    wStart = new Date(lastDay);
+    wStart.setDate(lastDay.getDate() - lastDay.getDay());
+    weekLabel = '末週';
+  }
+
+  let weekTotal = 0, weekDays = 0;
   for (let d = 1; d <= daysInMonth; d++) {
     const key   = dateKey(currentYear, currentMonth, d);
     const entry = data[key];
-    deficits.push(entry ? ((entry.burn || 0) - getIntake(entry)) : null);
-    weights.push(entry && entry.weight ? entry.weight : null);
+    if (!entry) continue;
+    const deficit = (entry.burn || 0) - getIntake(entry);
+    monthTotal += deficit;
+    monthDays++;
+    const entryDate = new Date(currentYear, currentMonth, d);
+    if (entryDate >= wStart && entryDate <= wEnd) { weekTotal += deficit; weekDays++; }
   }
 
-  // Calculate target daily deficit for goal line
-  let targetDaily = null;
-  if (goal) {
-    const goalKcal   = goal.kg * 7700;
-    let cumDeficit   = 0;
-    for (const v of Object.values(data)) cumDeficit += ((v.burn || 0) - getIntake(v));
-    const remaining  = Math.max(0, goalKcal - cumDeficit);
-    const todayMs    = new Date(today.toDateString()).getTime();
-    const deadlineMs = new Date(goal.date).getTime();
-    const daysLeft   = Math.max(0, Math.round((deadlineMs - todayMs) / 86400000));
-    targetDaily = daysLeft > 0 ? Math.round(remaining / daysLeft) : null;
-  }
+  const monthAvg = monthDays > 0 ? Math.round(monthTotal / monthDays) : 0;
+  const monthKg  = (monthTotal / 7700).toFixed(2);
+  makeStatCards(grid, [
+    { label: '本月記錄天數',         value: monthDays + ' 天',                                                      cls: '' },
+    { label: '本月累計缺口',         value: (monthTotal >= 0 ? '+' : '') + monthTotal.toLocaleString() + ' kcal',    cls: monthTotal >= 0 ? 'green' : 'red' },
+    { label: '本月每日平均',         value: (monthAvg  >= 0 ? '+' : '') + monthAvg.toLocaleString()  + ' kcal',      cls: monthAvg  >= 0 ? 'green' : 'red' },
+    { label: '本月估算體重變化',     value: (monthTotal >= 0 ? '-' : '+') + Math.abs(monthKg) + ' kg',               cls: monthTotal >= 0 ? 'green' : 'red' },
+    { label: weekLabel + '記錄天數', value: weekDays + ' 天',                                                        cls: '' },
+    { label: weekLabel + '累計缺口', value: (weekTotal >= 0 ? '+' : '') + weekTotal.toLocaleString() + ' kcal',      cls: weekTotal >= 0 ? 'green' : 'red' },
+  ]);
+}
 
-  drawDeficitChart(deficits, daysInMonth, targetDaily);
+// ── Chart ──
+function calcTargetDaily() {
+  if (!goal) return null;
+  const goalKcal   = goal.kg * 7700;
+  let cumDeficit   = 0;
+  for (const v of Object.values(data)) cumDeficit += ((v.burn || 0) - getIntake(v));
+  const remaining  = Math.max(0, goalKcal - cumDeficit);
+  const todayMs    = new Date(today.toDateString()).getTime();
+  const deadlineMs = new Date(goal.date).getTime();
+  const daysLeft   = Math.max(0, Math.round((deadlineMs - todayMs) / 86400000));
+  return daysLeft > 0 ? Math.round(remaining / daysLeft) : null;
+}
+
+function renderCharts() {
+  const deficits = [], weights = [];
+  let xLabels = null;
+
+  if (viewMode === 'week') {
+    const dayNames = ['一','二','三','四','五','六','日'];
+    xLabels = dayNames;
+    for (let i = 0; i < 7; i++) {
+      const d   = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      const key   = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
+      const entry = data[key];
+      deficits.push(entry ? ((entry.burn || 0) - getIntake(entry)) : null);
+      weights.push(entry?.weight || null);
+    }
+    drawDeficitChart(deficits, 7, null, xLabels);
+  } else {
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key   = dateKey(currentYear, currentMonth, d);
+      const entry = data[key];
+      deficits.push(entry ? ((entry.burn || 0) - getIntake(entry)) : null);
+      weights.push(entry?.weight || null);
+    }
+    drawDeficitChart(deficits, deficits.length, calcTargetDaily(), null);
+  }
 
   const hasWeight = weights.some(w => w !== null);
   document.getElementById('weightChartSection').style.display = hasWeight ? 'block' : 'none';
-  if (hasWeight) drawWeightChart(weights, deficits, daysInMonth);
+  if (hasWeight) drawWeightChart(weights, deficits, deficits.length);
 }
 
-function drawDeficitChart(deficits, days, targetDaily) {
+// ── 30-day trend ──
+function render30DayTrend() {
+  const days30 = [];
+  let total = 0, count = 0;
+
+  for (let i = 29; i >= 0; i--) {
+    const d   = new Date(today);
+    d.setDate(today.getDate() - i);
+    const key     = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
+    const entry   = data[key];
+    const deficit = entry ? ((entry.burn || 0) - getIntake(entry)) : null;
+    days30.push({ date: d, deficit });
+    if (deficit !== null) { total += deficit; count++; }
+  }
+
+  const avg = count > 0 ? Math.round(total / count) : 0;
+  const kg  = (total / 7700).toFixed(2);
+  makeStatCards(document.getElementById('trend30StatsGrid'), [
+    { label: '近30天記錄天數',    value: count + ' 天',                                                  cls: '' },
+    { label: '近30天累計缺口',    value: (total >= 0 ? '+' : '') + total.toLocaleString() + ' kcal',    cls: total >= 0 ? 'green' : 'red' },
+    { label: '近30天每日平均',    value: (avg   >= 0 ? '+' : '') + avg.toLocaleString()   + ' kcal',    cls: avg   >= 0 ? 'green' : 'red' },
+    { label: '近30天估算體重變化', value: (total >= 0 ? '-' : '+') + Math.abs(kg) + ' kg',              cls: total >= 0 ? 'green' : 'red' },
+  ]);
+
+  // Build sparse x-labels: show M/D at day 1, every 7 days, and day 30
+  const deficits = days30.map(d => d.deficit);
+  const xLabels  = days30.map((d, i) => {
+    if (i === 0 || i === 29 || i % 7 === 6) return `${d.date.getMonth()+1}/${d.date.getDate()}`;
+    return '';
+  });
+
+  const canvas = document.getElementById('trend30Chart');
+  const dpr = window.devicePixelRatio || 1;
+  const W   = canvas.parentElement.offsetWidth;
+  const H   = 140;
+  canvas.width  = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const pad    = { top: 16, bottom: 28, left: 44, right: 10 };
+  const chartW = W - pad.left - pad.right;
+  const chartH = H - pad.top  - pad.bottom;
+  const vals   = deficits.filter(v => v !== null);
+  const maxAbs = vals.length ? Math.max(200, ...vals.map(Math.abs)) : 500;
+  const zeroY  = pad.top + chartH / 2;
+  const slot   = chartW / 30;
+  const barW   = Math.max(2, slot * 0.7);
+
+  // Grid + zero line
+  ctx.strokeStyle = '#f0f0f0'; ctx.lineWidth = 1;
+  [0.25, 0.75].forEach(f => {
+    const y = pad.top + chartH * f;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+  });
+  ctx.strokeStyle = '#ccc';
+  ctx.beginPath(); ctx.moveTo(pad.left, zeroY); ctx.lineTo(W - pad.right, zeroY); ctx.stroke();
+
+  ctx.fillStyle = '#aaa'; ctx.font = '9px sans-serif'; ctx.textAlign = 'right';
+  ctx.fillText('-' + Math.round(maxAbs), pad.left - 4, pad.top + 10);
+  ctx.fillText('0', pad.left - 4, zeroY + 4);
+  ctx.fillText('+' + Math.round(maxAbs), pad.left - 4, pad.top + chartH - 2);
+
+  deficits.forEach((deficit, i) => {
+    if (deficit === null) return;
+    const cx = pad.left + i * slot + slot / 2;
+    const x  = cx - barW / 2;
+    const bH = (Math.abs(deficit) / maxAbs) * (chartH / 2);
+    ctx.fillStyle = deficit >= 0 ? '#86efac' : '#fca5a5';
+    ctx.beginPath();
+    if (deficit >= 0) ctx.roundRect(x, zeroY - bH, barW, bH, 2);
+    else              ctx.roundRect(x, zeroY, barW, bH, 2);
+    ctx.fill();
+
+    const label = xLabels[i];
+    if (label) {
+      ctx.fillStyle = '#bbb'; ctx.font = '8px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(label, cx, H - pad.bottom + 14);
+    }
+  });
+}
+
+function drawDeficitChart(deficits, days, targetDaily, xLabels) {
   const canvas = document.getElementById('deficitChart');
   const dpr = window.devicePixelRatio || 1;
   const W   = canvas.parentElement.offsetWidth;
@@ -347,12 +501,14 @@ function drawDeficitChart(deficits, days, targetDaily) {
       ctx.fill();
     }
 
-    // Day label every 5 days and last day
-    if ((i + 1) % 5 === 0 || i === 0 || i === days - 1) {
+    // X-axis labels
+    const label    = xLabels ? xLabels[i] : null;
+    const showLabel = xLabels ? !!label : ((i + 1) % 5 === 0 || i === 0 || i === days - 1);
+    if (showLabel) {
       ctx.fillStyle = '#bbb';
       ctx.font = '9px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(i + 1, cx, H - pad.bottom + 14);
+      ctx.fillText(label ?? (i + 1), cx, H - pad.bottom + 14);
     }
   });
 
@@ -586,6 +742,7 @@ function refreshAll() {
   renderStats();
   renderCharts();
   renderProgress();
+  render30DayTrend();
 }
 
 document.getElementById('modalCancel').addEventListener('click', closeModal);
@@ -637,14 +794,72 @@ document.getElementById('modalDelete').addEventListener('click', () => {
   refreshAll();
 });
 
+// ── Export / Import ──
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const payload = {
+    exportedAt:   new Date().toISOString(),
+    diet_data:    JSON.parse(localStorage.getItem(STORE_KEY)   || '{}'),
+    diet_goal:    JSON.parse(localStorage.getItem(GOAL_KEY)    || 'null'),
+    diet_profile: JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'),
+    diet_burnMode: localStorage.getItem('diet_burnMode') || 'tdee',
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `diet-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('importBtn').addEventListener('click', () => {
+  const file = document.getElementById('importFile').files[0];
+  if (!file) { alert('請先選擇 JSON 備份檔'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const imp = JSON.parse(e.target.result);
+      if (imp.diet_data) {
+        const merged = { ...loadData(), ...imp.diet_data };
+        saveData(merged);
+        data = merged;
+      }
+      if (imp.diet_goal)    { saveGoal(imp.diet_goal);       goal    = imp.diet_goal; }
+      if (imp.diet_profile) { saveProfile(imp.diet_profile); profile = imp.diet_profile; }
+      if (imp.diet_burnMode) localStorage.setItem('diet_burnMode', imp.diet_burnMode);
+      alert(`匯入成功！共 ${Object.keys(imp.diet_data || {}).length} 天的資料`);
+      loadProfileUI();
+      loadGoalUI();
+      refreshAll();
+    } catch { alert('檔案格式錯誤，請選擇正確的備份 JSON'); }
+  };
+  reader.readAsText(file);
+});
+
 // ── Today button ──
 document.getElementById('todayBtn').addEventListener('click', () => {
   currentYear  = today.getFullYear();
   currentMonth = today.getMonth();
+  weekStart    = getWeekStart(today);
   renderCalendar();
   renderStats();
   renderCharts();
   openModal(todayKey());
+});
+
+// ── View toggle ──
+document.getElementById('viewMonthBtn').addEventListener('click', () => {
+  viewMode = 'month';
+  document.getElementById('viewMonthBtn').classList.add('active');
+  document.getElementById('viewWeekBtn').classList.remove('active');
+  refreshAll();
+});
+document.getElementById('viewWeekBtn').addEventListener('click', () => {
+  viewMode  = 'week';
+  weekStart = getWeekStart(today);
+  document.getElementById('viewWeekBtn').classList.add('active');
+  document.getElementById('viewMonthBtn').classList.remove('active');
+  refreshAll();
 });
 
 // ── Goal ──
@@ -678,11 +893,21 @@ function loadProfileUI() {
 
 // ── Navigation ──
 document.getElementById('prevMonth').addEventListener('click', () => {
-  if (--currentMonth < 0) { currentMonth = 11; currentYear--; }
+  if (viewMode === 'week') {
+    weekStart = new Date(weekStart);
+    weekStart.setDate(weekStart.getDate() - 7);
+  } else {
+    if (--currentMonth < 0) { currentMonth = 11; currentYear--; }
+  }
   refreshAll();
 });
 document.getElementById('nextMonth').addEventListener('click', () => {
-  if (++currentMonth > 11) { currentMonth = 0; currentYear++; }
+  if (viewMode === 'week') {
+    weekStart = new Date(weekStart);
+    weekStart.setDate(weekStart.getDate() + 7);
+  } else {
+    if (++currentMonth > 11) { currentMonth = 0; currentYear++; }
+  }
   refreshAll();
 });
 
@@ -697,7 +922,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 
 // Redraw charts on resize
-window.addEventListener('resize', renderCharts);
+window.addEventListener('resize', () => { renderCharts(); render30DayTrend(); });
 
 // ── Init ──
 loadProfileUI();

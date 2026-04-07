@@ -350,6 +350,41 @@ canvas {
 
 .divider { border: none; border-top: 1px solid #eee; margin: 10px 0; }
 
+/* ── View toggle pill ── */
+.view-toggle-pill {
+  display: flex;
+  background: #f0f2f5;
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+.view-pill-btn {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #888;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.view-pill-btn.active {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  box-shadow: 0 1px 4px rgba(102,126,234,0.35);
+}
+
+/* ── Week-mode calendar grid ── */
+.days-grid.week-mode {
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.days-grid.week-mode .day-cell {
+  min-height: 100px;
+  border-radius: 12px;
+}
+
 /* ── Meal grid ── */
 .intake-section { margin-bottom: 4px; }
 
