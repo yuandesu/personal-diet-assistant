@@ -166,6 +166,16 @@ function makeDayCell(key, dayNum) {
     cell.appendChild(kcalEl);
     cell.classList.add(net < 0 ? 'deficit' : net > 0 ? 'surplus' : 'zero');
 
+    // Goal indicator
+    const targetDaily = calcTargetDaily();
+    if (targetDaily != null) {
+      const deficit = -net; // positive = good
+      const goalEl  = document.createElement('div');
+      goalEl.className = deficit >= targetDaily ? 'day-goal-hit' : 'day-goal-miss';
+      goalEl.textContent = deficit >= targetDaily ? '✓ 達標' : '✗ 未達';
+      cell.appendChild(goalEl);
+    }
+
     if (entry.weight) {
       const wEl = document.createElement('div');
       wEl.className = 'day-weight';
@@ -671,6 +681,55 @@ function drawWeightChart(weights, deficits, days) {
 }
 
 // ── Progress ──
+// ── Streak: consecutive days with deficit >= targetDaily (or any deficit if no goal) ──
+function calcStreak() {
+  const targetDaily = calcTargetDaily();
+  const threshold   = targetDaily != null ? targetDaily : 1; // need at least 1 kcal deficit
+  let streak = 0;
+  const cur = new Date(today);
+  while (true) {
+    const key   = dateKey(cur.getFullYear(), cur.getMonth(), cur.getDate());
+    const entry = data[key];
+    if (!entry) break;
+    const deficit = (entry.burn || 0) - getIntake(entry);
+    if (deficit < threshold) break;
+    streak++;
+    cur.setDate(cur.getDate() - 1);
+  }
+  return streak;
+}
+
+// ── Goal Banner (above calendar) ──
+function renderGoalBanner() {
+  const banner = document.getElementById('goalBanner');
+  if (!goal) { banner.style.display = 'none'; return; }
+  banner.style.display = 'block';
+
+  const goalKcal = goal.kg * 7700;
+  let cumDeficit = 0;
+  for (const v of Object.values(data)) cumDeficit += ((v.burn || 0) - getIntake(v));
+  const fatGrams  = Math.max(0, (cumDeficit / 7700 * 1000)).toFixed(0);
+  const remaining = Math.max(0, goalKcal - cumDeficit);
+  const pct       = Math.min(100, (cumDeficit / goalKcal) * 100);
+  const streak    = calcStreak();
+
+  const streakEl = document.getElementById('bannerStreak');
+  if (streak >= 2) {
+    streakEl.textContent = `🔥 連續 ${streak} 天達標`;
+  } else if (streak === 1) {
+    streakEl.textContent = `🔥 連續 1 天達標`;
+  } else {
+    streakEl.textContent = `⚡ 今日尚未達標`;
+  }
+
+  document.getElementById('bannerPct').textContent      = pct.toFixed(1) + '% 完成';
+  document.getElementById('bannerBarFill').style.width  = pct.toFixed(1) + '%';
+  document.getElementById('bannerCumLabel').textContent =
+    `已累計 ${cumDeficit.toLocaleString()} kcal（≈ ${fatGrams} g 脂肪）`;
+  document.getElementById('bannerRemainLabel').textContent =
+    remaining > 0 ? `還差 ${remaining.toLocaleString()} kcal` : '🎉 達標！';
+}
+
 function renderProgress() {
   if (!goal) { document.getElementById('progressPanel').style.display = 'none'; return; }
   document.getElementById('progressPanel').style.display = 'block';
@@ -743,6 +802,7 @@ function closeModal() {
 }
 
 function refreshAll() {
+  renderGoalBanner();
   renderCalendar();
   renderStats();
   renderCharts();
@@ -946,6 +1006,8 @@ document.getElementById('saveGoal').addEventListener('click', () => {
   if (!kg || !date) { alert('請填寫目標公斤與日期'); return; }
   goal = { kg, date };
   saveGoal(goal);
+  renderGoalBanner();
+  renderCalendar();  // refresh ✓/✗ indicators
   renderProgress();
 });
 
