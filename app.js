@@ -640,6 +640,7 @@ function drawWeightChart(weights, deficits, days) {
   ctx.stroke();
 
   // Dots + labels (actual)
+  let lastLabelX = -99, lastLabelY = -99;
   weights.forEach((w, i) => {
     if (w === null) return;
     const x = pad.left + i * slot + slot / 2;
@@ -647,10 +648,14 @@ function drawWeightChart(weights, deficits, days) {
     ctx.fillStyle = '#3d6b42';
     ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
 
-    ctx.fillStyle = '#888';
-    ctx.font = '8px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(w, x, y - 6);
+    const dx = x - lastLabelX, dy = y - lastLabelY;
+    if (Math.sqrt(dx * dx + dy * dy) >= 22) {
+      ctx.fillStyle = '#888';
+      ctx.font = '8px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(w, x, y - 6);
+      lastLabelX = x; lastLabelY = y;
+    }
   });
 
   // X labels
