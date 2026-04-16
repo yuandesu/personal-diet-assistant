@@ -308,11 +308,20 @@ function renderStats() {
 }
 
 // ── Chart ──
+// Sum deficit for entries on or after startDate (YYYY-MM-DD string); pass null to sum all
+function calcCumDeficit(startDate) {
+  let cum = 0;
+  for (const [k, v] of Object.entries(data)) {
+    if (startDate && k < startDate) continue;
+    cum += (v.burn || 0) - getIntake(v);
+  }
+  return cum;
+}
+
 function calcTargetDaily() {
   if (!goal) return null;
   const goalKcal   = goal.kg * 7700;
-  let cumDeficit   = 0;
-  for (const v of Object.values(data)) cumDeficit += ((v.burn || 0) - getIntake(v));
+  const cumDeficit = calcCumDeficit(goal.startDate || null);
   const remaining  = Math.max(0, goalKcal - cumDeficit);
   const todayMs    = new Date(today.toDateString()).getTime();
   const deadlineMs = new Date(goal.date).getTime();
@@ -695,9 +704,8 @@ function renderGoalBanner() {
   if (!goal) { banner.style.display = 'none'; return; }
   banner.style.display = 'block';
 
-  const goalKcal = goal.kg * 7700;
-  let cumDeficit = 0;
-  for (const v of Object.values(data)) cumDeficit += ((v.burn || 0) - getIntake(v));
+  const goalKcal  = goal.kg * 7700;
+  const cumDeficit = calcCumDeficit(goal.startDate || null);
   const fatGrams  = Math.max(0, (cumDeficit / 7700 * 1000)).toFixed(0);
   const remaining = Math.max(0, goalKcal - cumDeficit);
   const pct       = Math.min(100, (cumDeficit / goalKcal) * 100);
@@ -729,9 +737,7 @@ function renderProgress() {
   const deadlineMs = new Date(goal.date).getTime();
   const daysLeft   = Math.max(0, Math.round((deadlineMs - todayMs) / 86400000));
 
-  let cumDeficit = 0;
-  for (const v of Object.values(data)) cumDeficit += ((v.burn || 0) - getIntake(v));
-
+  const cumDeficit  = calcCumDeficit(goal.startDate || null);
   const remaining   = Math.max(0, goalKcal - cumDeficit);
   const pct         = Math.min(100, (cumDeficit / goalKcal) * 100);
   const kgSoFar     = (cumDeficit / 7700).toFixed(2);
@@ -991,10 +997,12 @@ document.getElementById('viewWeekBtn').addEventListener('click', () => {
 
 // ── Goal ──
 document.getElementById('saveGoal').addEventListener('click', () => {
-  const kg   = parseFloat(document.getElementById('goalKg').value);
-  const date = document.getElementById('goalDate').value;
-  if (!kg || !date) { alert('請填寫目標公斤與日期'); return; }
-  goal = { kg, date };
+  const kg        = parseFloat(document.getElementById('goalKg').value);
+  const startDate = document.getElementById('goalStartDate').value;
+  const date      = document.getElementById('goalDate').value;
+  if (!kg || !startDate || !date) { alert('請填寫目標公斤、起始日期與達成日期'); return; }
+  if (startDate >= date) { alert('起始日期必須早於達成日期'); return; }
+  goal = { kg, startDate, date };
   saveGoal(goal);
   renderGoalBanner();
   renderCalendar();  // refresh ✓/✗ indicators
@@ -1003,8 +1011,9 @@ document.getElementById('saveGoal').addEventListener('click', () => {
 
 function loadGoalUI() {
   if (!goal) return;
-  document.getElementById('goalKg').value   = goal.kg;
-  document.getElementById('goalDate').value = goal.date;
+  document.getElementById('goalKg').value        = goal.kg;
+  document.getElementById('goalStartDate').value = goal.startDate || '';
+  document.getElementById('goalDate').value      = goal.date;
 }
 
 // ── Load saved profile into BMR UI ──
