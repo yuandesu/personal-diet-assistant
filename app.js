@@ -166,16 +166,6 @@ function makeDayCell(key, dayNum) {
     cell.appendChild(kcalEl);
     cell.classList.add(net < 0 ? 'deficit' : net > 0 ? 'surplus' : 'zero');
 
-    // Goal indicator
-    const targetDaily = calcTargetDaily();
-    if (targetDaily != null) {
-      const deficit = -net; // positive = good
-      const goalEl  = document.createElement('div');
-      goalEl.className = deficit >= targetDaily ? 'day-goal-hit' : 'day-goal-miss';
-      goalEl.textContent = deficit >= targetDaily ? '✓ 達標' : '✗ 未達';
-      cell.appendChild(goalEl);
-    }
-
     if (entry.weight) {
       const wEl = document.createElement('div');
       wEl.className = 'day-weight';

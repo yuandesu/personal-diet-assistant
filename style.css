@@ -306,9 +306,6 @@ canvas { display: block; width: 100%; }
   font-size: 0.75rem; color: var(--text-muted);
 }
 
-/* ── Calendar day goal indicator ── */
-.day-goal-hit { font-size: 0.6rem; color: var(--green); font-weight: 700; }
-.day-goal-miss { font-size: 0.6rem; color: var(--red); font-weight: 600; }
 
 .days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 
