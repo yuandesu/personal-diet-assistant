@@ -98,30 +98,8 @@ function updateIntakeTotal() {
   document.getElementById('intakeTotal').textContent =
     total > 0 ? `合計：${total.toLocaleString()} kcal` : '合計：— kcal';
 }
-// ── Restrict number inputs to digits + one decimal point ──
-function restrictToNumber(el, allowDecimal) {
-  el.addEventListener('keydown', e => {
-    const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Enter','Home','End'];
-    if (allowed.includes(e.key)) return;
-    if (e.key >= '0' && e.key <= '9') return;
-    if (allowDecimal && e.key === '.' && !el.value.includes('.')) return;
-    e.preventDefault();
-  });
-  el.addEventListener('input', () => {
-    const pattern = allowDecimal ? /[^0-9.]/g : /[^0-9]/g;
-    let v = el.value.replace(pattern, '');
-    if (allowDecimal) {
-      const parts = v.split('.');
-      if (parts.length > 2) v = parts[0] + '.' + parts.slice(1).join('');
-    }
-    if (el.value !== v) el.value = v;
-  });
-}
-
 ['inputBreakfast', 'inputLunch', 'inputDinner', 'inputSnack'].forEach(id => {
-  const el = document.getElementById(id);
-  el.addEventListener('input', updateIntakeTotal);
-  restrictToNumber(el, false);
+  document.getElementById(id).addEventListener('input', updateIntakeTotal);
 });
 
 // ── Fill TDEE ──
@@ -167,9 +145,6 @@ function recalcBmrBurn() {
 }
 
 document.getElementById('inputSteps').addEventListener('input', recalcBmrBurn);
-restrictToNumber(document.getElementById('inputSteps'), false);
-restrictToNumber(document.getElementById('inputBurn'), false);
-restrictToNumber(document.getElementById('inputWeight'), true);
 
 // ── Calendar ──
 function makeDayCell(key, dayNum) {
