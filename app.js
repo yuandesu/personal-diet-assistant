@@ -1,3 +1,69 @@
+// ── Diet Plan Phases ──
+const PHASES = [
+  {
+    id: 'travel', label: '✈️ 旅行', shortLabel: '旅行',
+    start: '2026-06-05', end: '2026-06-17',
+    kcal: 1900, protein: 140, carbs: 185, fat: 62,
+    desc: '台灣 + 韓國（6/06–6/17）',
+    note: '步數 ≥12,000 ｜ 飯店訓練 15分鐘',
+    meals: { breakfast: 550, lunch: 700, snack: 200, dinner: 450 },
+  },
+  {
+    id: 'break', label: '♻️ 代謝重置', shortLabel: '重置',
+    start: '2026-06-18', end: '2026-07-01',
+    kcal: 2100, protein: 150, carbs: 210, fat: 75,
+    desc: 'Diet Break（6/18–7/01）',
+    note: '回日本後先重置代謝 2週，再開始 Phase 1',
+    meals: { breakfast: 600, lunch: 800, snack: 250, dinner: 450 },
+  },
+  {
+    id: 'p1', label: 'Phase 1', shortLabel: 'P1',
+    start: '2026-07-02', end: '2026-08-31',
+    kcal: 1900, protein: 150, carbs: 190, fat: 62,
+    desc: '重啟期（7月–8月）',
+    note: '目標 78.2→75.5 kg ｜ 重訓3次/週',
+    meals: { breakfast: 550, lunch: 700, snack: 250, dinner: 400 },
+  },
+  {
+    id: 'p2', label: 'Phase 2', shortLabel: 'P2',
+    start: '2026-09-01', end: '2026-09-30',
+    kcal: 1800, protein: 155, carbs: 165, fat: 58,
+    desc: '加速期（8月–9月）',
+    note: '目標 75.5→73 kg ｜ HIIT加入',
+    meals: { breakfast: 500, lunch: 650, snack: 200, dinner: 450 },
+  },
+  {
+    id: 'p3', label: 'Phase 3', shortLabel: 'P3',
+    start: '2026-10-01', end: '2026-11-30',
+    kcal: 1750, protein: 160, carbs: 155, fat: 55,
+    desc: '精修期（10月–11月）',
+    note: '目標 73→70 kg ｜ 週間1,750 / 週末2,000',
+    meals: { breakfast: 480, lunch: 600, snack: 180, dinner: 490 },
+  },
+  {
+    id: 'p4', label: 'Phase 4', shortLabel: 'P4',
+    start: '2026-12-01', end: '2026-12-31',
+    kcal: 1700, protein: 165, carbs: 155, fat: 55,
+    desc: '收尾期（12月）',
+    note: '目標 70→68 kg ｜ App精確記錄',
+    meals: { breakfast: 480, lunch: 580, snack: 170, dinner: 470 },
+  },
+];
+
+function getCurrentPhase() {
+  const saved = localStorage.getItem('diet_phase');
+  if (saved) {
+    const found = PHASES.find(p => p.id === saved);
+    if (found) return found;
+  }
+  const tk = todayKey();
+  return PHASES.find(p => tk >= p.start && tk <= p.end) || PHASES[PHASES.length - 1];
+}
+
+function getDailyTarget() {
+  return getCurrentPhase().kcal;
+}
+
 // ── Intake helper (supports old single-field & new meal-breakdown data) ──
 function getIntake(entry) {
   if (!entry) return 0;
@@ -89,18 +155,31 @@ function applyBurnMode(mode) {
 document.getElementById('modeTdeeBtn').addEventListener('click', () => applyBurnMode('tdee'));
 document.getElementById('modeBmrBtn').addEventListener('click',  () => applyBurnMode('bmr'));
 
-// ── Intake auto-sum ──
-function updateIntakeTotal() {
-  const total = (parseInt(document.getElementById('inputBreakfast').value) || 0)
-              + (parseInt(document.getElementById('inputLunch').value)     || 0)
-              + (parseInt(document.getElementById('inputDinner').value)    || 0)
-              + (parseInt(document.getElementById('inputSnack').value)     || 0);
-  document.getElementById('intakeTotal').textContent =
-    total > 0 ? `合計：${total.toLocaleString()} kcal` : '合計：— kcal';
+// ── Intake deficit banner ──
+function updateIntakeDeficit() {
+  const intake = parseInt(document.getElementById('inputIntake').value) || 0;
+  const target = getDailyTarget();
+  const chip   = document.getElementById('intakeTargetChip');
+  const banner = document.getElementById('intakeDeficitBanner');
+  chip.textContent = `目標 ${target.toLocaleString()} kcal`;
+  if (intake > 0) {
+    const diff = target - intake;
+    banner.style.display = 'block';
+    if (diff > 0) {
+      banner.className = 'intake-deficit-banner good';
+      banner.textContent = `✅ 還可以吃 ${diff.toLocaleString()} kcal`;
+    } else if (diff === 0) {
+      banner.className = 'intake-deficit-banner ok';
+      banner.textContent = `🎯 剛好達到目標`;
+    } else {
+      banner.className = 'intake-deficit-banner over';
+      banner.textContent = `⚠️ 超出目標 ${Math.abs(diff).toLocaleString()} kcal`;
+    }
+  } else {
+    banner.style.display = 'none';
+  }
 }
-['inputBreakfast', 'inputLunch', 'inputDinner', 'inputSnack'].forEach(id => {
-  document.getElementById(id).addEventListener('input', updateIntakeTotal);
-});
+document.getElementById('inputIntake').addEventListener('input', updateIntakeDeficit);
 
 // ── Fill TDEE ──
 document.getElementById('fillTdeeBtn').addEventListener('click', () => {
@@ -770,15 +849,13 @@ function openModal(key) {
   document.getElementById('modalTitle').textContent = `${y}/${m}/${d} 熱量記錄`;
 
   const entry = data[key];
-  document.getElementById('inputBreakfast').value = entry ? (entry.breakfast || '') : '';
-  document.getElementById('inputLunch').value     = entry ? (entry.lunch     || '') : '';
-  document.getElementById('inputDinner').value    = entry ? (entry.dinner    || '') : '';
-  document.getElementById('inputSnack').value     = entry ? (entry.snack     || '') : '';
-  // backward-compat: if old single intake field exists, prefill breakfast
-  if (entry?.intake && !entry.breakfast && !entry.lunch && !entry.dinner && !entry.snack) {
-    document.getElementById('inputBreakfast').value = entry.intake;
-  }
-  updateIntakeTotal();
+  // Load intake (support old multi-field format)
+  const existingIntake = entry ? getIntake(entry) : 0;
+  document.getElementById('inputIntake').value = existingIntake || '';
+  const target = getDailyTarget();
+  document.getElementById('intakeTargetChip').textContent = `目標 ${target.toLocaleString()} kcal`;
+  document.getElementById('intakeDeficitBanner').style.display = 'none';
+  if (existingIntake) updateIntakeDeficit();
   document.getElementById('inputBurn').value   = entry ? (entry.burn   || '') : '';
   document.getElementById('inputSteps').value  = entry ? (entry.steps  || '') : '';
   document.getElementById('inputWeight').value = entry ? (entry.weight || '') : '';
@@ -797,6 +874,57 @@ function closeModal() {
   activeKey = null;
 }
 
+// ── Plan Tab ──
+function renderPlanTab() {
+  const phase = getCurrentPhase();
+
+  // Phase pills
+  const pillsEl = document.getElementById('planPhasePills');
+  if (!pillsEl) return;
+  pillsEl.innerHTML = PHASES.map(p =>
+    `<button class="plan-phase-pill ${p.id === phase.id ? 'active' : ''}" onclick="selectPhase('${p.id}')">${p.shortLabel}</button>`
+  ).join('');
+
+  // Phase info
+  document.getElementById('planPhaseInfo').innerHTML =
+    `<div class="plan-phase-info-box">
+      <span class="plan-phase-name">${phase.label}</span>
+      <span class="plan-phase-desc">${phase.desc}</span>
+      ${phase.note ? `<span class="plan-phase-note">${phase.note}</span>` : ''}
+    </div>`;
+
+  // Macro grid
+  document.getElementById('planMacroGrid').innerHTML =
+    `<div class="plan-macro-item kcal"><div class="pm-val">${phase.kcal.toLocaleString()}</div><div class="pm-label">kcal</div></div>
+     <div class="plan-macro-item prot"><div class="pm-val">${phase.protein}g</div><div class="pm-label">蛋白質</div></div>
+     <div class="plan-macro-item carb"><div class="pm-val">${phase.carbs}g</div><div class="pm-label">碳水</div></div>
+     <div class="plan-macro-item fat"><div class="pm-val">${phase.fat}g</div><div class="pm-label">脂肪</div></div>`;
+
+  // Meal distribution
+  const m = phase.meals;
+  document.getElementById('planMealDist').innerHTML =
+    ['breakfast','lunch','snack','dinner'].map((k, i) => {
+      const icons  = ['🌅','☀️','🕐','🌙'];
+      const names  = ['早餐','午餐','點心','晚餐'];
+      const pct    = Math.round(m[k] / phase.kcal * 100);
+      return `<div class="plan-meal-row">
+        <span class="pmr-icon">${icons[i]}</span>
+        <span class="pmr-name">${names[i]}</span>
+        <div class="pmr-bar-wrap"><div class="pmr-bar" style="width:${pct}%"></div></div>
+        <span class="pmr-kcal">~${m[k]} kcal</span>
+      </div>`;
+    }).join('');
+
+  // Update modal target chip if modal is open
+  const chip = document.getElementById('intakeTargetChip');
+  if (chip) chip.textContent = `目標 ${phase.kcal.toLocaleString()} kcal`;
+}
+
+function selectPhase(id) {
+  localStorage.setItem('diet_phase', id);
+  renderPlanTab();
+}
+
 function refreshAll() {
   renderGoalBanner();
   renderCalendar();
@@ -812,25 +940,19 @@ document.getElementById('modalOverlay').addEventListener('click', e => {
 });
 
 document.getElementById('modalSave').addEventListener('click', () => {
-  const breakfast = parseInt(document.getElementById('inputBreakfast').value) || 0;
-  const lunch     = parseInt(document.getElementById('inputLunch').value)     || 0;
-  const dinner    = parseInt(document.getElementById('inputDinner').value)    || 0;
-  const snack     = parseInt(document.getElementById('inputSnack').value)     || 0;
-  const burn      = parseInt(document.getElementById('inputBurn').value)      || 0;
-  const steps     = parseInt(document.getElementById('inputSteps').value)     || 0;
-  const weight    = parseFloat(document.getElementById('inputWeight').value)  || null;
+  const intake = parseInt(document.getElementById('inputIntake').value) || 0;
+  const burn   = parseInt(document.getElementById('inputBurn').value)   || 0;
+  const steps  = parseInt(document.getElementById('inputSteps').value)  || 0;
+  const weight = parseFloat(document.getElementById('inputWeight').value) || null;
 
-  const hasAnyValue = breakfast || lunch || dinner || snack || burn || weight;
+  const hasAnyValue = intake || burn || weight;
   if (!hasAnyValue) { alert('請至少填入一項資料'); return; }
 
   data[activeKey] = {
-    ...(breakfast ? { breakfast } : {}),
-    ...(lunch     ? { lunch }     : {}),
-    ...(dinner    ? { dinner }    : {}),
-    ...(snack     ? { snack }     : {}),
-    ...(burn      ? { burn }      : {}),
-    ...(steps     ? { steps }     : {}),
-    ...(weight    ? { weight }    : {}),
+    ...(intake ? { intake } : {}),
+    ...(burn   ? { burn }   : {}),
+    ...(steps  ? { steps }  : {}),
+    ...(weight ? { weight } : {}),
   };
   saveData(data);
   closeModal();
@@ -1056,6 +1178,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'plan') renderPlanTab();
   });
 });
 
@@ -1063,7 +1186,18 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 window.addEventListener('resize', () => { renderCharts(); render30DayTrend(); });
 
 // ── Init ──
+// Plan menu toggle
+const planMenuToggleBtn = document.getElementById('planMenuToggle');
+if (planMenuToggleBtn) {
+  planMenuToggleBtn.addEventListener('click', () => {
+    const content = document.getElementById('planMenuContent');
+    const isOpen  = content.style.display !== 'none';
+    content.style.display = isOpen ? 'none' : 'block';
+    planMenuToggleBtn.textContent = isOpen ? '🍱 快速菜單 ▾' : '🍱 快速菜單 ▴';
+  });
+}
 loadProfileUI();
 loadGoalUI();
 applyBurnMode(burnMode);
 refreshAll();
+renderPlanTab();
